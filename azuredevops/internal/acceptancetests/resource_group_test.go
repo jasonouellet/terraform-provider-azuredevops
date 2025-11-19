@@ -1,7 +1,3 @@
-//go:build (all || core || resource_group) && !exclude_resource_group
-// +build all core resource_group
-// +build !exclude_resource_group
-
 package acceptancetests
 
 import (
@@ -160,7 +156,7 @@ func checkGroupExists(expectedName string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		varGroup, ok := s.RootModule().Resources["azuredevops_group.test"]
 		if !ok {
-			return fmt.Errorf(" Did not find a group resource in the TF state")
+			return fmt.Errorf("Did not find a group resource in the TF state")
 		}
 
 		getGroupArgs := graph.GetGroupArgs{
@@ -172,10 +168,10 @@ func checkGroupExists(expectedName string) resource.TestCheckFunc {
 			return err
 		}
 		if group == nil {
-			return fmt.Errorf(" Group with Name=%s does not exit", varGroup.Primary.Attributes["display_name"])
+			return fmt.Errorf("Group with Name=%s does not exit", varGroup.Primary.Attributes["display_name"])
 		}
 		if *group.DisplayName != expectedName {
-			return fmt.Errorf(" Group has Name=%s, but expected %s", *group.DisplayName, expectedName)
+			return fmt.Errorf("Group has Name=%s, but expected %s", *group.DisplayName, expectedName)
 		}
 
 		return nil
@@ -200,9 +196,8 @@ func checkGroupDestroyed(s *terraform.State) error {
 			if utils.ResponseWasNotFound(err) {
 				return nil
 			}
-			return fmt.Errorf(" Group with ID %s should not exist in scope %s", id, resource.Primary.Attributes["scope"])
+			return fmt.Errorf("Group with ID %s should not exist in scope %s", id, resource.Primary.Attributes["scope"])
 		}
-
 	}
 
 	return nil

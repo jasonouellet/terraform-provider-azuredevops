@@ -162,7 +162,7 @@ func resourceServiceEndpointAzureCRRead(d *schema.ResourceData, m interface{}) e
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf(" looking up service endpoint given ID (%s) and project ID (%s): %v", getArgs.EndpointId, *getArgs.Project, err)
+		return fmt.Errorf("looking up service endpoint given ID (%s) and project ID (%s): %v", getArgs.EndpointId, *getArgs.Project, err)
 	}
 
 	if err = checkServiceConnection(serviceEndpoint); err != nil {
@@ -180,7 +180,7 @@ func resourceServiceEndpointAzureCRUpdate(d *schema.ResourceData, m interface{})
 	}
 
 	if _, err = updateServiceEndpoint(clients, serviceEndpoint); err != nil {
-		return fmt.Errorf(" Updating service endpoint in Azure DevOps: %+v", err)
+		return fmt.Errorf("Updating service endpoint in Azure DevOps: %+v", err)
 	}
 
 	return resourceServiceEndpointAzureCRRead(d, m)
@@ -263,7 +263,7 @@ func expandServiceEndpointAzureCR(d *schema.ResourceData) (*serviceendpoint.Serv
 		if serviceEndpointCreationMode == Automatic {
 			serviceEndpoint.Authorization = &serviceendpoint.EndpointAuthorization{
 				Parameters: &map[string]string{
-					"serviceprincipalid": "",
+					"serviceprincipalid": d.Get("service_principal_id").(string), // add the SPN ID back to update
 					"tenantId":           d.Get("azurecr_spn_tenantid").(string),
 					"loginServer":        loginServer,
 					"scope":              scope,
@@ -271,6 +271,7 @@ func expandServiceEndpointAzureCR(d *schema.ResourceData) (*serviceendpoint.Serv
 				Scheme: converter.String(string(serviceEndPointAuthenticationScheme)),
 			}
 		}
+
 		if serviceEndpointCreationMode == Manual {
 			servicePrincipalId := credentials["serviceprincipalid"].(string)
 			if servicePrincipalId == "" {
@@ -293,6 +294,11 @@ func expandServiceEndpointAzureCR(d *schema.ResourceData) (*serviceendpoint.Serv
 			"subscriptionId":   subscriptionID.(string),
 			"subscriptionName": d.Get("azurecr_subscription_name").(string),
 			"creationMode":     string(serviceEndpointCreationMode),
+
+			"appObjectId":              d.Get("app_object_id").(string),
+			"spnObjectId":              d.Get("spn_object_id").(string),
+			"azureSpnPermissions":      d.Get("az_spn_role_permissions").(string),
+			"azureSpnRoleAssignmentId": d.Get("az_spn_role_assignment_id").(string),
 		}
 	}
 
@@ -321,38 +327,52 @@ func flattenServiceEndpointAzureCR(d *schema.ResourceData, serviceEndpoint *serv
 		d.Set("service_principal_id", (*serviceEndpoint.Authorization.Parameters)["serviceprincipalid"])
 
 		if scope, ok := (*serviceEndpoint.Authorization.Parameters)["scope"]; ok {
-			s := strings.SplitN(scope, "/", -1)
+			s := strings.Split(scope, "/")
 			d.Set("resource_group", s[4])
 			d.Set("azurecr_name", s[8])
 		}
 	}
 
-	if (*serviceEndpoint.Data)["creationMode"] == "Manual" {
-		if _, ok := d.GetOk("credentials"); !ok {
-			credentials := make(map[string]interface{})
-			credentials["serviceprincipalid"] = (*serviceEndpoint.Authorization.Parameters)["serviceprincipalid"]
-			if serviceEndPointType == ServicePrincipal {
-				credentials["serviceprincipalkey"] = d.Get("credentials.0.serviceprincipalkey").(string)
+	if serviceEndpoint.Data != nil {
+		if (*serviceEndpoint.Data)["creationMode"] == "Manual" {
+			if _, ok := d.GetOk("credentials"); !ok {
+				credentials := make(map[string]interface{})
+				credentials["serviceprincipalid"] = (*serviceEndpoint.Authorization.Parameters)["serviceprincipalid"]
+				if serviceEndPointType == ServicePrincipal {
+					credentials["serviceprincipalkey"] = d.Get("credentials.0.serviceprincipalkey").(string)
+				}
+				d.Set("credentials", []interface{}{credentials})
 			}
-			d.Set("credentials", []interface{}{credentials})
 		}
-	}
 
-	if serviceEndPointType == WorkloadIdentityFederation {
-		if serviceEndpoint.Data != nil {
-			d.Set("azurecr_subscription_id", (*serviceEndpoint.Data)["subscriptionId"])
-			d.Set("azurecr_subscription_name", (*serviceEndpoint.Data)["subscriptionName"])
+		if serviceEndPointType == WorkloadIdentityFederation {
+			if serviceEndpoint.Data != nil {
+				d.Set("azurecr_subscription_id", (*serviceEndpoint.Data)["subscriptionId"])
+				d.Set("azurecr_subscription_name", (*serviceEndpoint.Data)["subscriptionName"])
+			}
 		}
-	}
 
-	if serviceEndPointType == ServicePrincipal {
-		if serviceEndpoint.Data != nil {
-			d.Set("azurecr_subscription_id", (*serviceEndpoint.Data)["subscriptionId"])
-			d.Set("azurecr_subscription_name", (*serviceEndpoint.Data)["subscriptionName"])
-			d.Set("app_object_id", (*serviceEndpoint.Data)["appObjectId"])
-			d.Set("spn_object_id", (*serviceEndpoint.Data)["spnObjectId"])
-			d.Set("az_spn_role_permissions", (*serviceEndpoint.Data)["azureSpnPermissions"])
-			d.Set("az_spn_role_assignment_id", (*serviceEndpoint.Data)["azureSpnRoleAssignmentId"])
+		if serviceEndPointType == ServicePrincipal {
+			if serviceEndpoint.Data != nil {
+				d.Set("azurecr_subscription_id", (*serviceEndpoint.Data)["subscriptionId"])
+				d.Set("azurecr_subscription_name", (*serviceEndpoint.Data)["subscriptionName"])
+			}
+		}
+
+		if v, ok := (*serviceEndpoint.Data)["appObjectId"]; ok {
+			d.Set("app_object_id", v)
+		}
+
+		if v, ok := (*serviceEndpoint.Data)["spnObjectId"]; ok {
+			d.Set("spn_object_id", v)
+		}
+
+		if v, ok := (*serviceEndpoint.Data)["azureSpnPermissions"]; ok {
+			d.Set("az_spn_role_permissions", v)
+		}
+
+		if v, ok := (*serviceEndpoint.Data)["azureSpnRoleAssignmentId"]; ok {
+			d.Set("az_spn_role_assignment_id", v)
 		}
 	}
 }

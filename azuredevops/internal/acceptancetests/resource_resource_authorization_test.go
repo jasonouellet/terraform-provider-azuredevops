@@ -1,7 +1,3 @@
-//go:build (all || resource_authorization) && !exclude_resource_authorization
-// +build all resource_authorization
-// +build !exclude_resource_authorization
-
 package acceptancetests
 
 import (

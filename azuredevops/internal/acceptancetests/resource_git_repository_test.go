@@ -1,7 +1,3 @@
-//go:build (all || core || resource_git_repository) && !exclude_resource_git_repository
-// +build all core resource_git_repository
-// +build !exclude_resource_git_repository
-
 package acceptancetests
 
 import (
@@ -11,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/git"
@@ -177,10 +174,9 @@ func TestAccGitRepository_incorrectInitialization(t *testing.T) {
 			},
 		},
 	})
-
 }
 
-func TestAccGitRepository_import(t *testing.T) {
+func TestAccGitRepository_importGitRepository(t *testing.T) {
 	projectName := testutils.GenerateResourceName()
 	gitRepoName := testutils.GenerateResourceName()
 
@@ -200,10 +196,52 @@ func TestAccGitRepository_import(t *testing.T) {
 					resource.TestCheckResourceAttrSet(tfRepoNode, "web_url"),
 					resource.TestCheckResourceAttr(tfRepoNode, "initialization.#", "1"),
 					checkGitRepoExists(gitRepoName),
-				)},
+				),
+			},
 		},
 	})
+}
 
+func TestAccGitRepository_import_by_name(t *testing.T) {
+	projectName := testutils.GenerateResourceName()
+	gitRepoName := testutils.GenerateResourceName()
+
+	tfRepoNode := "azuredevops_git_repository.test"
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:  func() { testutils.PreCheck(t, nil) },
+		Providers: testutils.GetProviders(),
+		Steps: []resource.TestStep{
+			{
+				Config: hclGitRepositoryBasic(projectName, gitRepoName, "Clean"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(tfRepoNode, "is_fork"),
+					resource.TestCheckResourceAttrSet(tfRepoNode, "remote_url"),
+					resource.TestCheckResourceAttr(tfRepoNode, "initialization.#", "1"),
+					checkGitRepoExists(gitRepoName),
+				),
+			},
+			{
+				ResourceName:            tfRepoNode,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"initialization"},
+				ImportStateId:           fmt.Sprintf("%s/%s", projectName, gitRepoName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(tfRepoNode, "name", gitRepoName),
+					func(state *terraform.State) error {
+						id, ok := state.RootModule().Resources["id"]
+						if !ok {
+							return fmt.Errorf("Resource `ID` not found in state")
+						}
+						if err := uuid.Validate(id.String()); err != nil {
+							return fmt.Errorf("Resource `ID` is not in UUID format. Current value: %s", id.String())
+						}
+						return nil
+					},
+				),
+			},
+		},
+	})
 }
 
 func TestAccGitRepository_initializationClean(t *testing.T) {
@@ -365,7 +403,7 @@ func checkGitRepoExists(expectedName string) resource.TestCheckFunc {
 
 		gitRepo, ok := s.RootModule().Resources["azuredevops_git_repository.test"]
 		if !ok {
-			return fmt.Errorf(" Did not find a repo definition in the TF state")
+			return fmt.Errorf("Did not find a repo definition in the TF state")
 		}
 
 		repoID := gitRepo.Primary.ID
@@ -377,7 +415,7 @@ func checkGitRepoExists(expectedName string) resource.TestCheckFunc {
 		}
 
 		if *repo.Name != expectedName {
-			return fmt.Errorf(" AzDO Git Repository has Name=%s, but expected Name=%s", *repo.Name, expectedName)
+			return fmt.Errorf("AzDO Git Repository has Name=%s, but expected Name=%s", *repo.Name, expectedName)
 		}
 
 		return nil
@@ -424,7 +462,7 @@ func readGitRepo(clients *client.AggregatedClient, repoID string, projectID stri
 			return nil, err
 		}
 		for _, gitRepo := range *allRepo {
-			if strings.EqualFold((*gitRepo.Id).String(), repoID) ||
+			if strings.EqualFold(gitRepo.Id.String(), repoID) ||
 				strings.EqualFold(*gitRepo.Name, repoID) {
 				repo = &gitRepo
 				break

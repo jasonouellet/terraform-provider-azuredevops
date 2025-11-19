@@ -1,7 +1,3 @@
-//go:build (all || data_sources || git || data_git_repository) && (!exclude_data_sources || !exclude_git || !data_git_repository)
-// +build all data_sources git data_git_repository
-// +build !exclude_data_sources !exclude_git !data_git_repository
-
 package acceptancetests
 
 import (
@@ -42,11 +38,12 @@ func TestAccGitRepository_DataSource_notExist(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config:      hclDataRepositoryNotExist(name),
-				ExpectError: regexp.MustCompile(fmt.Sprintf(`Repository with name notExist does not exist`)),
+				ExpectError: regexp.MustCompile(`Repository with name notExist does not exist`),
 			},
 		},
 	})
 }
+
 func hclDataRepository(projectName string) string {
 	return fmt.Sprintf(`
 resource "azuredevops_project" "test" {
@@ -58,7 +55,6 @@ data "azuredevops_git_repository" "repository" {
   name       = "%[1]s"
 }
 `, projectName)
-
 }
 
 func hclDataRepositoryNotExist(name string) string {
@@ -72,5 +68,4 @@ data "azuredevops_git_repository" "test" {
   name       = "notExist"
 }
 `, name)
-
 }

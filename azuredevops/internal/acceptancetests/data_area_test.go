@@ -1,7 +1,3 @@
-//go:build (all || core || data_sources || data_area) && (!exclude_data_sources || !exclude_data_area)
-// +build all core data_sources data_area
-// +build !exclude_data_sources !exclude_data_area
-
 package acceptancetests
 
 import (

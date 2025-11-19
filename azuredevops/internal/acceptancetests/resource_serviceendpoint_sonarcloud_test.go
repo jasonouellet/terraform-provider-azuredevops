@@ -1,7 +1,3 @@
-//go:build (all || resource_serviceendpoint_SonarCloud) && !exclude_serviceendpoints
-// +build all resource_serviceendpoint_SonarCloud
-// +build !exclude_serviceendpoints
-
 package acceptancetests
 
 import (

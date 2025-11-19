@@ -201,7 +201,7 @@ func resourceServiceEndpointKubernetesRead(d *schema.ResourceData, m interface{}
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf(" looking up service endpoint given ID (%s) and project ID (%s): %v", getArgs.EndpointId, *getArgs.Project, err)
+		return fmt.Errorf("looking up service endpoint given ID (%s) and project ID (%s): %v", getArgs.EndpointId, *getArgs.Project, err)
 	}
 
 	if err = checkServiceConnection(serviceEndpoint); err != nil {
@@ -223,7 +223,7 @@ func resourceServiceEndpointKubernetesUpdate(d *schema.ResourceData, m interface
 	}
 
 	if _, err = updateServiceEndpoint(clients, serviceEndpoint); err != nil {
-		return fmt.Errorf(" updating service endpoint in Azure DevOps: %+v", err)
+		return fmt.Errorf("updating service endpoint in Azure DevOps: %+v", err)
 	}
 
 	return resourceServiceEndpointKubernetesRead(d, m)
@@ -349,7 +349,7 @@ func flattenServiceEndpointKubernetes(d *schema.ResourceData, serviceEndpoint *s
 		}
 		clusterAdmin, err := strconv.ParseBool((*serviceEndpoint.Data)["clusterAdmin"])
 		if err != nil {
-			return fmt.Errorf(" Parsing `cluster_admin` value. Error: %+v", err)
+			return fmt.Errorf("Parsing `cluster_admin` value. Error: %+v", err)
 		}
 		configItems := map[string]interface{}{
 			"azure_environment": (*serviceEndpoint.Authorization.Parameters)["azureEnvironment"],
@@ -367,36 +367,33 @@ func flattenServiceEndpointKubernetes(d *schema.ResourceData, serviceEndpoint *s
 		d.Set("azure_subscription", configItemList)
 	case "Kubeconfig":
 		var kubeconfig map[string]interface{}
-		kubeconfigSet := d.Get("kubeconfig").([]interface{})
-		configuration := kubeconfigSet[0].(map[string]interface{})
 
-		if len(configuration) > 0 {
-			kubeconfig = map[string]interface{}{}
+		kubeconfig = map[string]interface{}{}
 
-			if v, ok := configuration["kube_config"]; ok {
+		if kubeconfigSet := d.Get("kubeconfig").([]interface{}); len(kubeconfigSet) != 0 {
+			if v, ok := kubeconfigSet[0].(map[string]interface{})["kube_config"]; ok {
 				kubeconfig["kube_config"] = v.(string)
 			}
-
-			if serviceEndpoint.Data != nil {
-				if v, ok := (*serviceEndpoint.Data)["acceptUntrustedCerts"]; ok {
-					acceptUntrustedCerts, err := strconv.ParseBool(v)
-					if err != nil {
-						return fmt.Errorf(" failed to parse `accept_untrusted_certs`: %+v ", err)
-					}
-					kubeconfig["accept_untrusted_certs"] = acceptUntrustedCerts
-				}
-			}
-
-			if serviceEndpoint.Authorization != nil && serviceEndpoint.Authorization.Parameters != nil {
-				if v, ok := (*serviceEndpoint.Authorization.Parameters)["clusterContext"]; ok {
-					kubeconfig["cluster_context"] = v
-				}
-			}
-
-			kubeconfigList := make([]map[string]interface{}, 1)
-			kubeconfigList[0] = kubeconfig
-			d.Set("kubeconfig", kubeconfigList)
 		}
+
+		if serviceEndpoint.Data != nil {
+			if v, ok := (*serviceEndpoint.Data)["acceptUntrustedCerts"]; ok {
+				acceptUntrustedCerts, err := strconv.ParseBool(v)
+				if err != nil {
+					return fmt.Errorf("failed to parse `accept_untrusted_certs`: %+v ", err)
+				}
+				kubeconfig["accept_untrusted_certs"] = acceptUntrustedCerts
+			}
+		}
+
+		if serviceEndpoint.Authorization != nil && serviceEndpoint.Authorization.Parameters != nil {
+			if v, ok := (*serviceEndpoint.Authorization.Parameters)["clusterContext"]; ok {
+				kubeconfig["cluster_context"] = v
+			}
+		}
+		kubeconfigList := make([]map[string]interface{}, 1)
+		kubeconfigList[0] = kubeconfig
+		d.Set("kubeconfig", kubeconfigList)
 	case "ServiceAccount":
 		var serviceAccount map[string]interface{}
 		serviceAccountSet := d.Get("service_account").([]interface{})
@@ -415,7 +412,7 @@ func flattenServiceEndpointKubernetes(d *schema.ResourceData, serviceEndpoint *s
 			if v, ok := (*serviceEndpoint.Data)["acceptUntrustedCerts"]; ok {
 				acceptUntrustedCerts, err := strconv.ParseBool(v)
 				if err != nil {
-					return fmt.Errorf(" Pparse `accept_untrusted_certs`. Error: %+v ", err)
+					return fmt.Errorf("Pparse `accept_untrusted_certs`. Error: %+v ", err)
 				}
 				serviceAccount["accept_untrusted_certs"] = acceptUntrustedCerts
 			}

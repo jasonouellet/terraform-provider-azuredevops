@@ -50,14 +50,36 @@ func DataVariableGroup() *schema.Resource {
 							Type:     schema.TypeString,
 							Computed: true,
 						},
-						"secret_value": {
-							Type:      schema.TypeString,
-							Computed:  true,
-							Sensitive: true,
+						"content_type": {
+							Type:     schema.TypeString,
+							Computed: true,
 						},
-						"is_secret": {
+						"enabled": {
 							Type:     schema.TypeBool,
 							Computed: true,
+						},
+						"expires": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
+					},
+				},
+				Set: getVariableHash,
+			},
+
+			"secret_variable": {
+				Type:     schema.TypeSet,
+				Computed: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"name": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
+						"value": {
+							Type:      schema.TypeString,
+							Sensitive: true,
+							Computed:  true,
 						},
 						"content_type": {
 							Type:     schema.TypeString,
@@ -110,12 +132,12 @@ func dataSourceVariableGroupRead(d *schema.ResourceData, m interface{}) error {
 	}
 
 	if len(*variableGroups) == 0 {
-		return fmt.Errorf(" Unable to find variable group with name: %s", name)
+		return fmt.Errorf("Unable to find variable group with name: %s", name)
 	}
 
 	err = flattenVariableGroup(d, &(*variableGroups)[0], &projectID)
 	if err != nil {
-		return fmt.Errorf(" flattening variable group: %v", err)
+		return fmt.Errorf("flattening variable group: %v", err)
 	}
 
 	return nil

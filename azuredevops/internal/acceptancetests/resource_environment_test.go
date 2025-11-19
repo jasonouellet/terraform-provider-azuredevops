@@ -1,7 +1,3 @@
-//go:build (all || resource_environment) && !exclude_resource_environment
-// +build all resource_environment
-// +build !exclude_resource_environment
-
 package acceptancetests
 
 import (
@@ -83,7 +79,6 @@ func checkEnvironmentExists(expectedName string) resource.TestCheckFunc {
 		projectID := resource.Primary.Attributes["project_id"]
 
 		environment, err := readEnvironment(clients, id, projectID)
-
 		if err != nil {
 			return fmt.Errorf("Environment with ID=%d cannot be found!. Error=%v", id, err)
 		}

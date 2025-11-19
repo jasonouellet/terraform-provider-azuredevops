@@ -91,7 +91,6 @@ func resourceExtensionCreate(ctx context.Context, d *schema.ResourceData, m inte
 			ExtensionName: &extensionId,
 			Version:       converter.String(d.Get("version").(string)),
 		})
-
 	if err != nil {
 		return diag.Errorf(" Installing extension for Publisher: %s, Name: %s. Error: %v", publisherId, extensionId, err)
 	}
@@ -109,7 +108,6 @@ func resourceExtensionRead(ctx context.Context, d *schema.ResourceData, m interf
 		PublisherName: &publisherId,
 		ExtensionName: &extensionId,
 	})
-
 	if err != nil {
 		if utils.ResponseWasNotFound(err) {
 			d.SetId("")
@@ -125,13 +123,16 @@ func resourceExtensionRead(ctx context.Context, d *schema.ResourceData, m interf
 		d.Set("scope", extension.Scopes)
 		d.Set("publisher_name", extension.PublisherName)
 		d.Set("extension_name", extension.ExtensionName)
-		if extension.InstallState != nil {
-			if *extension.InstallState.Flags == extensionmanagement.ExtensionStateFlagsValues.None {
-				d.Set("disabled", false)
-			} else if *extension.InstallState.Flags == extensionmanagement.ExtensionStateFlagsValues.Disabled {
-				d.Set("disabled", true)
-			} else {
-				return diag.Errorf(" Extension is in an unexpected state. Status: %s", *extension.InstallState.Flags)
+		if extension.InstallState != nil && extension.InstallState.Flags != nil {
+			d.Set("disabled", false)
+
+			flagsStr := string(*extension.InstallState.Flags)
+			flags := strings.Split(flagsStr, ",")
+			for _, flag := range flags {
+				if flag == string(extensionmanagement.ExtensionStateFlagsValues.Disabled) {
+					d.Set("disabled", true)
+					break
+				}
 			}
 		}
 	}
@@ -179,7 +180,6 @@ func resourceExtensionDelete(ctx context.Context, d *schema.ResourceData, m inte
 		PublisherName: &publisher,
 		ExtensionName: &name,
 	})
-
 	if err != nil {
 		return diag.Errorf(" Uninstalling extension for Publisher: %s, name: %s. Error: %v", publisher, name, err)
 	}

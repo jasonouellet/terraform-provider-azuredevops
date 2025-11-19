@@ -226,7 +226,7 @@ func (sn *SecurityNamespace) GetActionDefinitions() (*map[string]security.Action
 		if err != nil {
 			return nil, err
 		}
-		if secns == nil || len(*secns) <= 0 || (*secns)[0].Actions == nil || len(*(*secns)[0].Actions) <= 0 {
+		if secns == nil || len(*secns) == 0 || (*secns)[0].Actions == nil || len(*(*secns)[0].Actions) == 0 {
 			return nil, fmt.Errorf("Failed to load security namespace definition with id [%s]", sn.namespaceID)
 		}
 
@@ -240,17 +240,19 @@ func (sn *SecurityNamespace) GetActionDefinitions() (*map[string]security.Action
 }
 
 func (sn *SecurityNamespace) GetAccessControlList(descriptorList *[]string) (*security.AccessControlList, error) {
-	var descriptors *string = nil
-	if descriptorList != nil && len(*descriptorList) > 0 {
-		val := linq.From(*descriptorList).
-			Aggregate(func(r interface{}, i interface{}) interface{} {
-				if r.(string) == "" {
-					return i
-				}
-				return r.(string) + "," + i.(string)
-			}).(string)
-		descriptors = &val
+	if descriptorList == nil || len(*descriptorList) == 0 {
+		return nil, nil
 	}
+
+	var descriptors *string
+	val := linq.From(*descriptorList).
+		Aggregate(func(r interface{}, i interface{}) interface{} {
+			if r.(string) == "" {
+				return i
+			}
+			return r.(string) + "," + i.(string)
+		}).(string)
+	descriptors = &val
 
 	bTrue := true
 	acl, err := sn.securityClient.QueryAccessControlLists(sn.context, security.QueryAccessControlListsArgs{
@@ -259,11 +261,10 @@ func (sn *SecurityNamespace) GetAccessControlList(descriptorList *[]string) (*se
 		Descriptors:         descriptors,
 		IncludeExtendedInfo: &bTrue,
 	})
-
 	if err != nil {
 		return nil, err
 	}
-	if acl == nil || len(*acl) <= 0 {
+	if acl == nil || len(*acl) == 0 {
 		return nil, nil
 	}
 	if len(*acl) != 1 {
@@ -272,8 +273,39 @@ func (sn *SecurityNamespace) GetAccessControlList(descriptorList *[]string) (*se
 	return &(*acl)[0], nil
 }
 
+func (sn *SecurityNamespace) tryGetIdentitiesFromSubjects(principal *[]string) (*[]identity.Identity, error) {
+	descriptors := linq.From(*principal).
+		Aggregate(func(r interface{}, i interface{}) interface{} {
+			if r.(string) == "" {
+				return i
+			}
+			return r.(string) + "," + i.(string)
+		}).(string)
+
+	idlist, err := sn.identityClient.ReadIdentities(sn.context, identity.ReadIdentitiesArgs{
+		SubjectDescriptors: converter.String(descriptors),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var emptyId identity.Identity
+	linq.From(*idlist).Where(func(ele interface{}) bool {
+		if val, ok := ele.(identity.Identity); ok {
+			if val == emptyId {
+				return false
+			}
+			if val.IsActive == nil || val.IsActive != nil && *val.IsActive {
+				return true
+			}
+		}
+		return false
+	}).ToSlice(idlist)
+	return idlist, nil
+}
+
 func (sn *SecurityNamespace) getIdentitiesFromSubjects(principal *[]string) (*[]identity.Identity, error) {
-	if principal == nil || len(*principal) <= 0 {
+	if principal == nil || len(*principal) == 0 {
 		return nil, fmt.Errorf("principal is nil or empty")
 	}
 
@@ -288,17 +320,20 @@ func (sn *SecurityNamespace) getIdentitiesFromSubjects(principal *[]string) (*[]
 	idlist, err := sn.identityClient.ReadIdentities(sn.context, identity.ReadIdentitiesArgs{
 		SubjectDescriptors: converter.String(descriptors),
 	})
-
 	if err != nil {
 		return nil, err
 	}
 
-	if idlist == nil || len(*idlist) <= 0 {
-		return nil, fmt.Errorf(" No identity information for defined principals [%s]", descriptors)
+	if idlist == nil || len(*idlist) == 0 {
+		return nil, fmt.Errorf("No identity information for defined principals [%s]", descriptors)
 	}
 
+	var emptyId identity.Identity
 	linq.From(*idlist).Where(func(ele interface{}) bool {
 		if val, ok := ele.(identity.Identity); ok {
+			if val == emptyId {
+				return false
+			}
 			if val.IsActive == nil || val.IsActive != nil && *val.IsActive {
 				return true
 			}
@@ -307,14 +342,14 @@ func (sn *SecurityNamespace) getIdentitiesFromSubjects(principal *[]string) (*[]
 	}).ToSlice(idlist)
 
 	if len(*idlist) != len(*principal) {
-		return nil, fmt.Errorf(" Failed to load identity information for defined principals [%s]", descriptors)
+		return nil, fmt.Errorf("Failed to load identity information for defined principals [%s]", descriptors)
 	}
 	return idlist, nil
 }
 
 // SetPrincipalPermissions sets ACLs for specifc token inside a security namespace
 func (sn *SecurityNamespace) SetPrincipalPermissions(permissionList *[]SetPrincipalPermission) error {
-	if nil == permissionList || len(*permissionList) <= 0 {
+	if nil == permissionList || len(*permissionList) == 0 {
 		return nil
 	}
 
@@ -401,16 +436,17 @@ func (sn *SecurityNamespace) SetPrincipalPermissions(permissionList *[]SetPrinci
 				aceItem.Allow = new(int)
 			}
 
-			if strings.EqualFold("deny", string(value)) {
+			switch strings.ToLower(string(value)) {
+			case "deny":
 				*aceItem.Allow = (*aceItem.Allow) &^ (*actionDef.Bit)
 				*aceItem.Deny = (*aceItem.Deny) | (*actionDef.Bit)
-			} else if strings.EqualFold("allow", string(value)) {
+			case "allow":
 				*aceItem.Deny = (*aceItem.Deny) &^ (*actionDef.Bit)
 				*aceItem.Allow = (*aceItem.Allow) | (*actionDef.Bit)
-			} else if strings.EqualFold("notset", string(value)) {
+			case "notset":
 				*aceItem.Allow = (*aceItem.Allow) &^ (*actionDef.Bit)
 				*aceItem.Deny = (*aceItem.Deny) &^ (*actionDef.Bit)
-			} else {
+			default:
 				return fmt.Errorf("Invalid permission action [%s]", value)
 			}
 		}
@@ -445,7 +481,7 @@ func (sn *SecurityNamespace) GetPrincipalPermissions(principal *[]string) (*[]Pr
 		return nil, err
 	}
 
-	idList, err := sn.getIdentitiesFromSubjects(principal)
+	idList, err := sn.tryGetIdentitiesFromSubjects(principal)
 	if err != nil {
 		return nil, err
 	}
@@ -478,20 +514,20 @@ func (sn *SecurityNamespace) GetPrincipalPermissions(principal *[]string) (*[]Pr
 				Descriptors: converter.String(descriptor),
 			})
 			if err != nil {
-				return nil, fmt.Errorf(" Unable to get identity details for descriptor [%s]", descriptor)
+				return nil, fmt.Errorf("Unable to get identity details for descriptor [%s]", descriptor)
 			}
 			idMap[descriptor] = (*identityDetails)[0]
 		}
 	}
 
-	var permissions []PrincipalPermission
+	permissions := make([]PrincipalPermission, 0, len(*acl.AcesDictionary))
 	for descriptor, ace := range *acl.AcesDictionary {
 		subject, ok := idMap[descriptor]
 		if !ok {
 			return nil, fmt.Errorf("INTERAL ERROR: identity map does not contain an item with key [%s]", descriptor)
 		}
 		if subject.SubjectDescriptor == nil {
-			return nil, fmt.Errorf(" Identity %s does not contain a subject descriptor value", descriptor)
+			return nil, fmt.Errorf("Identity %s does not contain a subject descriptor value", descriptor)
 		}
 
 		subjectPerm := PrincipalPermission{
@@ -499,11 +535,12 @@ func (sn *SecurityNamespace) GetPrincipalPermissions(principal *[]string) (*[]Pr
 			Permissions:       map[ActionName]PermissionType{},
 		}
 		for actionName, actionDef := range *actions {
-			if (*ace.Allow)&(*actionDef.Bit) != 0 {
+			switch {
+			case (*ace.Allow)&(*actionDef.Bit) != 0:
 				subjectPerm.Permissions[ActionName(actionName)] = PermissionTypeValues.Allow
-			} else if (*ace.Deny)&(*actionDef.Bit) != 0 {
+			case (*ace.Deny)&(*actionDef.Bit) != 0:
 				subjectPerm.Permissions[ActionName(actionName)] = PermissionTypeValues.Deny
-			} else {
+			default:
 				subjectPerm.Permissions[ActionName(actionName)] = PermissionTypeValues.NotSet
 			}
 		}

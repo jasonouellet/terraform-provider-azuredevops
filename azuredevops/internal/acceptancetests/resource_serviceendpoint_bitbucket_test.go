@@ -1,7 +1,3 @@
-//go:build (all || resource_serviceendpoint_bitbucket) && !exclude_serviceendpoints
-// +build all resource_serviceendpoint_bitbucket
-// +build !exclude_serviceendpoints
-
 package acceptancetests
 
 import (

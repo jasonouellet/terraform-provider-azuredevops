@@ -1,7 +1,3 @@
-//go:build (all || resource_serviceendpoint_runpipeline) && !exclude_serviceendpoints
-// +build all resource_serviceendpoint_runpipeline
-// +build !exclude_serviceendpoints
-
 package acceptancetests
 
 import (
